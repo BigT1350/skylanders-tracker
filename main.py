@@ -54,42 +54,65 @@ def save_seen(link):
         f.write(link + "\n")
 
 # 🕸️ eBay Scraper
+import random
+import time
+
 def search_ebay(query, max_price, required_keywords):
     url = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}&_sop=15"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    soup = BeautifulSoup(requests.get(url, headers=headers).text, "html.parser")
-    items = soup.select(".s-item")
+    headers = {
+        "User-Agent": random.choice([
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0"
+        ])
+    }
 
-    seen = load_seen()
-    rejected = load_rejected()
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"⚠️ eBay returned status code: {response.status_code}")
+            return []
 
-    results = []
-    for item in items:
-        title_el = item.select_one(".s-item__title")
-        price_el = item.select_one(".s-item__price")
-        link_el = item.select_one("a")
+        soup = BeautifulSoup(response.text, "html.parser")
+        items = soup.select(".s-item")
 
-        if not (title_el and price_el and link_el):
-            continue
+        seen = load_seen()
+        rejected = load_rejected()
+        results = []
 
-        title = title_el.text.lower()
-        price_match = re.search(r"\$([\d,.]+)", price_el.text)
-        if not price_match:
-            continue
-        price = float(price_match.group(1).replace(",", ""))
-        link = link_el["href"].split("?")[0]
+        for item in items:
+            title_el = item.select_one(".s-item__title")
+            price_el = item.select_one(".s-item__price")
+            link_el = item.select_one("a")
 
-        if (
-            "new listing" in title
-            or not all(word in title for word in required_keywords)
-            or price > max_price
-            or link in seen
-            or link in rejected
-        ):
-            continue
+            if not (title_el and price_el and link_el):
+                continue
 
-        results.append({"title": title_el.text, "price": price_el.text, "link": link, "price_val": price})
-    return results
+            title = title_el.text.lower()
+            price_match = re.search(r"\$([\d,.]+)", price_el.text)
+            if not price_match:
+                continue
+            price = float(price_match.group(1).replace(",", ""))
+            link = link_el["href"].split("?")[0]
+
+            if (
+                "new listing" in title
+                or not all(word in title for word in required_keywords)
+                or price > max_price
+                or link in seen
+                or link in rejected
+            ):
+                continue
+
+            results.append({"title": title_el.text, "price": price_el.text, "link": link, "price_val": price})
+        
+        # Wait a bit before next request to avoid rate-limiting
+        time.sleep(random.uniform(3, 5))
+        return results
+
+    except Exception as e:
+        print(f"❌ Scrape failed: {e}")
+        return []
 
 # 📧 Email sender
 def send_email(name, result, reject_link):
