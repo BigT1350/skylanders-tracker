@@ -167,6 +167,16 @@ def reject():
     return f"❌ Rejected: {link}"
 
 # 🔁 Auto-run on startup
+@app.route("/test")
+def test_email():
+    test_result = {
+        "title": "Gold Chop Chop Skylander - Rare Collector's Edition",
+        "price": "$199.99",
+        "link": "https://www.ebay.com/itm/test-chop-chop",
+        "price_val": 199.99
+    }
+    send_email("Gold Chop Chop", test_result, "https://skylanders-tracker.onrender.com/reject?link=test-chop-chop")
+    return "✅ Test email sent!"
 if __name__ == "__main__":
     import threading
     import time
