@@ -165,7 +165,7 @@ def reject():
     with open(rejected_file, "a") as f:
         f.write(link.strip() + "\n")
     return f"❌ Rejected: {link}"
-    @app.route("/run")
+@app.route("/run")
 def manual_run():
     try:
         public_url = "https://skylanders-tracker.onrender.com"
