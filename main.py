@@ -153,7 +153,7 @@ def run_tracker(public_url):
 # 🌐 Flask reject server
 app = Flask(__name__)
 
-@app.route("/")
+@app.route("/run")
 def home():
     return "✅ Skylanders Tracker is running."
 
