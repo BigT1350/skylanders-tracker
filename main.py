@@ -57,17 +57,7 @@ def save_seen(link):
 def search_ebay(query, max_price, required_keywords):
     url = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}&_sop=15"
     headers = {"User-Agent": "Mozilla/5.0"}
-    
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            print(f"⚠️ eBay returned status code: {response.status_code}")
-            return []
-    except Exception as e:
-        print(f"❌ Error fetching eBay page: {e}")
-        return []
-
-    soup = BeautifulSoup(response.text, "html.parser")
+    soup = BeautifulSoup(requests.get(url, headers=headers).text, "html.parser")
     items = soup.select(".s-item")
 
     seen = load_seen()
@@ -89,20 +79,13 @@ def search_ebay(query, max_price, required_keywords):
         price = float(price_match.group(1).replace(",", ""))
         link = link_el["href"].split("?")[0]
 
-        if "new listing" in title:
-            print(f"⛔ Skipping new listing: {title}")
-            continue
-        if not all(word in title for word in required_keywords):
-            print(f"⛔ Skipping due to missing keywords: {title}")
-            continue
-        if price > max_price:
-            print(f"⛔ Skipping overprice: {price} > {max_price} | {title}")
-            continue
-        if link in seen:
-            print(f"⛔ Already seen: {link}")
-            continue
-        if link in rejected:
-            print(f"⛔ Already rejected: {link}")
+        if (
+            "new listing" in title
+            or not all(word in title for word in required_keywords)
+            or price > max_price
+            or link in seen
+            or link in rejected
+        ):
             continue
 
         results.append({"title": title_el.text, "price": price_el.text, "link": link, "price_val": price})
@@ -126,20 +109,15 @@ def send_email(name, result, reject_link):
 """
     msg.attach(MIMEText(body, "plain"))
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, app_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-        print("📤 Email sent successfully.")
-    except Exception as e:
-        print(f"❌ Failed to send email: {e}")
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(sender_email, app_password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
 
 # 🚀 Run the tracker
 def run_tracker(public_url):
-    for sk in skylanders:
-        print(f"\n🔍 Searching: {sk['name']} | Max Price: ${sk['max_price']}")
+    for sk in skylanders[:5]:  # Limit to first 5 per run
+        print(f"🔍 Searching: {sk['name']}")
         results = search_ebay(sk["name"], sk["max_price"], sk["keywords"])
-        print(f"🟡 Found {len(results)} matching results for {sk['name']}")
         if results:
             result = sorted(results, key=lambda r: r["price_val"])[0]
             reject_link = f"{public_url}/reject?link={result['link']}"
@@ -165,32 +143,24 @@ def reject():
     with open(rejected_file, "a") as f:
         f.write(link.strip() + "\n")
     return f"❌ Rejected: {link}"
-@app.route("/run")
-def manual_run():
-    try:
-        public_url = "https://skylanders-tracker.onrender.com"
-        run_tracker(public_url)
-        return "✅ Scraper ran successfully."
-    except Exception as e:
-        return f"⚠️ Error: {e}"
 
 # 🔁 Auto-run on startup
 if __name__ == "__main__":
     import threading
-    import time
 
     def run_flask():
         app.run(host="0.0.0.0", port=10000)
 
     def run_every_x_minutes():
+        import time
         time.sleep(10)  # wait until Flask starts
         while True:
             try:
                 public_url = "https://skylanders-tracker.onrender.com"
                 run_tracker(public_url)
             except Exception as e:
-                print(f"⚠️ Error in run_tracker: {e}")
-            time.sleep(3600)  # every hour
+                print(f"⚠️ Error: {e}")
+            time.sleep(3600)  # repeat every hour
 
     threading.Thread(target=run_flask).start()
     threading.Thread(target=run_every_x_minutes).start()
